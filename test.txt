@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Image to Polyomino</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  </head>
+  <body>
+    <div>Image to polyomino</div>
+
+    <canvas id="canvas"></canvas>
+  </body>
+</html>
+
+<script>
+  const canvas = document.getElementById("canvas");
+  const c = canvas.getContext("2d");
+  const grayScaleImage = [];
+  let polyomino = [];
+
+  canvas.width = innerWidth;
+  canvas.height = innerHeight;
+
+  function toGrayScale(r, g, b) {
+    return (r + b + g) / 3;
+  }
+
+  function trimEdges(grid) {
+    let top = 0;
+    let bottom = grid.length;
+    let left = 0;
+    let right = grid[0].length;
+
+    while (top < bottom && grid[top].every((cell) => !cell)) {
+      top++;
+    }
+
+    while (bottom > top && grid[bottom - 1].every((cell) => !cell)) {
+      bottom--;
+    }
+
+    while (left < right && grid.slice(top, bottom).every((row) => !row[left])) {
+      left++;
+    }
+
+    while (
+      right > left &&
+      grid.slice(top, bottom).every((row) => !row[right - 1])
+    ) {
+      right--;
+    }
+
+    return grid.slice(top, bottom).map((row) => row.slice(left, right));
+  }
+
+  const image = new Image();
+
+  image.src = "./test.jpg";
+
+  image.onload = () => {
+    const width = Math.round(image.width / 10);
+    const height = Math.round(image.height / 10);
+
+    const resolution = Math.round(width / 15);
+
+    c.drawImage(image, 0, 0, width, height);
+
+    const imageData = c.getImageData(0, 0, width, height).data;
+
+    c.save();
+    c.translate(width, 0);
+
+    for (let i = 0; i < height; i += resolution) {
+      polyomino[i / resolution] = [];
+
+      for (let j = 0; j < width; j += resolution) {
+        const rgbIndex = (i * width + j) * 4;
+        const UV =
+          toGrayScale(
+            imageData[rgbIndex],
+            imageData[rgbIndex + 1],
+            imageData[rgbIndex + 2]
+          ) + 170;
+
+        polyomino[i / resolution][j / resolution] = UV;
+
+        if (UV <= 255) {
+          polyomino[i / resolution][j / resolution] = 1;
+        } else {
+          polyomino[i / resolution][j / resolution] = 0;
+        }
+
+        c.fillStyle = `rgb(${UV},${UV},${UV})`;
+        c.fillRect(j, i, resolution, resolution);
+      }
+    }
+
+    c.restore();
+
+    polyomino = trimEdges(polyomino);
+
+    c.save();
+    c.translate(width * 2, 0);
+
+    for (let i = 0; i < polyomino.length; i++) {
+      for (let j = 0; j < polyomino[i].length; j++) {
+        if (polyomino[i][j] === 1) {
+          c.fillStyle = "black";
+          c.fillRect(j * resolution, i * resolution, resolution, resolution);
+        }
+      }
+    }
+
+    c.restore();
+  };
+</script>
