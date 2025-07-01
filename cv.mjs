@@ -1,3 +1,5 @@
+import { Gaussian } from "./gaussian.mjs";
+import { HTL } from "./htl.mjs";
 import { Sobel } from "./sobel.mjs";
 
 export class CV {
@@ -5,6 +7,8 @@ export class CV {
     this.canvasID = canvasID;
     this.imagePath = imagePath;
     this.grayscaleMatrix = [];
+    this.gaussianMatrix = [];
+    this.sobelMatrix = [];
     this.c = null;
   }
 
@@ -48,9 +52,81 @@ export class CV {
       }
 
       this.displayGrayscale();
+      this.gaussianBlur();
+      this.edgeDetection(900);
+      this.displayLines(900);
 
-      this.edgeDetection();
+      const htl = new HTL(this.sobelMatrix);
+      htl.computeHTL();
     };
+  }
+
+  displayLines(x) {
+    const htl = new HTL(this.sobelMatrix);
+    this.htlAccumulator = htl.computeHTL();
+    const diagonalLength = Math.sqrt(
+      this.sobelMatrix[0].length ** 2 + this.sobelMatrix.length ** 2,
+    );
+
+    // for (let line of this.htlAccumulator) {
+    //   const tooClose = deduped.some(
+    //     (other) =>
+    //       Math.abs(other.r - line.r) < 50 && Math.abs(other.t - line.t) < 20,
+    //   );
+
+    //   if (!tooClose) deduped.push(line);
+    // }
+    //
+
+    // for (let i = 0; i < this.htlAccumulator.length; i++) {
+    //   for (let j = 0; j < this.htlAccumulator[i].length; j++) {
+    //     const tooClose = deduped.some((other) => Math.abs()
+    //     // theta = this.htlAccumulator[i][j]
+    //     // accumulator[p][theta]++;
+    //   }
+    // }
+
+    // const deduped = this.htlAccumulator;
+    const lines = [];
+    const deduped = [];
+
+    for (let i = 0; i < this.htlAccumulator.length; i++) {
+      for (let j = 0; j < this.htlAccumulator[i].length; j++) {
+        // const tooClose = deduped.some(
+        //   (other) => Math.abs(other.r - i) < 5 && Math.abs(other.t - j) < 2,
+        // );
+
+        // if (!tooClose) deduped.push({ r: i, theta: j });
+        //
+        deduped.push({ r: i, theta: j });
+      }
+    }
+
+    this.c.save();
+    this.c.translate(x, 0);
+    for (let line of deduped) {
+      const voteCount = this.htlAccumulator[line.r][line.theta];
+
+      if (voteCount > 190) {
+        const theta = line.theta * (Math.PI / 180);
+        const r = line.r - diagonalLength; // magnitude
+        const x = Math.cos(theta);
+        const y = Math.sin(theta);
+        const x0 = x * r;
+        const y0 = y * r;
+        const scale = diagonalLength;
+        const x1 = Math.round(x0 + scale * -y);
+        const y1 = Math.round(y0 + scale * x);
+        const x2 = Math.round(x0 - scale * -y);
+        const y2 = Math.round(y0 - scale * x);
+        this.c.beginPath();
+        this.c.moveTo(x1, y1);
+        this.c.lineTo(x2, y2);
+        this.c.strokeStyle = "red";
+        this.c.stroke();
+      }
+    }
+    this.c.restore();
   }
 
   displayGrayscale() {
@@ -67,15 +143,33 @@ export class CV {
     this.c.restore();
   }
 
-  edgeDetection() {
-    const sobel = new Sobel(this.grayscaleMatrix);
-    const sobelMatrix = sobel.generateEdgeMatrix();
+  edgeDetection(x) {
+    const sobel = new Sobel(this.gaussianMatrix);
+    this.sobelMatrix = sobel.generateEdgeMatrix();
+
+    this.c.save();
+    this.c.translate(x, 0);
+    for (let i = 0; i < this.sobelMatrix.length; i++) {
+      for (let j = 0; j < this.sobelMatrix[i].length; j++) {
+        const g = this.sobelMatrix[i][j];
+
+        this.c.fillStyle = `rgb(${g},${g},${g})`;
+        this.c.fillRect(j, i, 1, 1);
+      }
+    }
+    this.c.restore();
+  }
+
+  gaussianBlur() {
+    const gaussian = new Gaussian(this.grayscaleMatrix);
+    this.gaussianMatrix = gaussian.blur();
 
     this.c.save();
     this.c.translate(600, 0);
-    for (let i = 0; i < sobelMatrix.length; i++) {
-      for (let j = 0; j < sobelMatrix[i].length; j++) {
-        const g = sobelMatrix[i][j];
+    for (let i = 0; i < this.gaussianMatrix.length; i++) {
+      for (let j = 0; j < this.gaussianMatrix[i].length; j++) {
+        const g = this.gaussianMatrix[i][j];
+
         this.c.fillStyle = `rgb(${g},${g},${g})`;
         this.c.fillRect(j, i, 1, 1);
       }
