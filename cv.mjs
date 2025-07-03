@@ -128,7 +128,7 @@ export class CV {
     this.c.save();
     this.c.translate(x, 0);
     for (let line1 of clusterReduced) {
-      this.drawLine(line1);
+      // this.drawLine(line1);
 
       for (let line2 of clusterReduced) {
         let intersected = false;
@@ -166,7 +166,7 @@ export class CV {
               });
 
               if (!tooClose) {
-                this.c.fillStyle = "blue";
+                this.c.fillStyle = "red";
                 this.c.fillRect(x - 3, y - 3, 6, 6);
 
                 intersections.push({ x, y });

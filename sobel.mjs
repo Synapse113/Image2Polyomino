@@ -1,3 +1,5 @@
+import { clamp } from "./utils.mjs"
+
 export class Sobel {
   constructor(matrix) {
     this.matrix = matrix;
@@ -63,7 +65,7 @@ export class Sobel {
     }
 
     const magnitude = Math.sqrt(gx ** 2 + gy ** 2);
-    const clampedMagnitude = Math.max(0, Math.min(magnitude, 255)); // clamp to 0-255
+    const clampedMagnitude = clamp(magnitude, 0, 255); // clamp to 0-255
 
     return clampedMagnitude;
   }
