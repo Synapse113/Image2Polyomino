@@ -21,11 +21,11 @@ export class HTL {
         if (brightness > 40) {
           for (let theta = 0; theta < thetaSteps; theta++) {
             const thetaRad = theta * (Math.PI / 180);
-            const p = Math.round(
+            const rho = Math.round(
               j * Math.cos(thetaRad) + i * Math.sin(thetaRad) + diagonalLength,
             );
 
-            accumulator[p][theta]++;
+            accumulator[rho][theta]++;
           }
         }
       }

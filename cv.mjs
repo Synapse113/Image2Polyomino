@@ -1,6 +1,7 @@
 import { Gaussian } from "./gaussian.mjs";
 import { HTL } from "./htl.mjs";
 import { Sobel } from "./sobel.mjs";
+import { deg2Rad, rad2Deg } from "./utils.mjs";
 
 export class CV {
   constructor(canvasID, imagePath) {
@@ -61,69 +62,118 @@ export class CV {
     };
   }
 
+  vect2Line(line) {
+    const scalar = this.diagonalLength;
+
+    // HTL offsets rho by the diagonal length of the image so that indexes are always positive
+    // this means we have to shift it back to get the correct origin position
+    const realRho = line.r - this.diagonalLength;
+
+    const vect = {
+      x: realRho * Math.cos(deg2Rad(line.theta)),
+      y: realRho * Math.sin(deg2Rad(line.theta)),
+    };
+    const vectDir = {
+      x: -Math.sin(deg2Rad(line.theta)),
+      y: Math.cos(deg2Rad(line.theta)),
+    };
+
+    const l = {
+      x1: vect.x + vectDir.x * scalar,
+      y1: vect.y + vectDir.y * scalar,
+      x2: vect.x - vectDir.x * scalar,
+      y2: vect.y - vectDir.y * scalar,
+    };
+
+    return l;
+  }
+
+  drawLine(vect) {
+    const l = this.vect2Line(vect);
+
+    this.c.beginPath();
+    this.c.moveTo(l.x1, l.y1); // start
+    this.c.lineTo(l.x2, l.y2); // end
+    this.c.strokeStyle = "red";
+    this.c.stroke();
+  }
+
   displayLines(x) {
     const htl = new HTL(this.sobelMatrix);
     this.htlAccumulator = htl.computeHTL();
-    const diagonalLength = Math.sqrt(
+    this.diagonalLength = Math.sqrt(
       this.sobelMatrix[0].length ** 2 + this.sobelMatrix.length ** 2,
     );
-
-    // for (let line of this.htlAccumulator) {
-    //   const tooClose = deduped.some(
-    //     (other) =>
-    //       Math.abs(other.r - line.r) < 50 && Math.abs(other.t - line.t) < 20,
-    //   );
-
-    //   if (!tooClose) deduped.push(line);
-    // }
-    //
-
-    // for (let i = 0; i < this.htlAccumulator.length; i++) {
-    //   for (let j = 0; j < this.htlAccumulator[i].length; j++) {
-    //     const tooClose = deduped.some((other) => Math.abs()
-    //     // theta = this.htlAccumulator[i][j]
-    //     // accumulator[p][theta]++;
-    //   }
-    // }
-
-    // const deduped = this.htlAccumulator;
-    const lines = [];
-    const deduped = [];
+    const clusterReduced = [];
 
     for (let i = 0; i < this.htlAccumulator.length; i++) {
       for (let j = 0; j < this.htlAccumulator[i].length; j++) {
-        // const tooClose = deduped.some(
-        //   (other) => Math.abs(other.r - i) < 5 && Math.abs(other.t - j) < 2,
-        // );
+        const votes = this.htlAccumulator[i][j];
 
-        // if (!tooClose) deduped.push({ r: i, theta: j });
-        //
-        deduped.push({ r: i, theta: j });
+        if (votes > 190) {
+          const tooClose = clusterReduced.some(
+            (other) =>
+              Math.abs(other.r - i) < 16 && Math.abs(other.theta - j) < 5,
+          );
+
+          if (!tooClose) {
+            clusterReduced.push({ r: i, theta: j });
+          }
+        }
       }
     }
 
+    const intersections = [];
+
     this.c.save();
     this.c.translate(x, 0);
-    for (let line of deduped) {
-      const voteCount = this.htlAccumulator[line.r][line.theta];
+    for (let line1 of clusterReduced) {
+      this.drawLine(line1);
 
-      if (voteCount > 190) {
-        const theta = line.theta * (Math.PI / 180);
-        const r = line.r - diagonalLength; // magnitude
-        const x = Math.cos(theta);
-        const y = Math.sin(theta);
-        const x0 = x * r;
-        const y0 = y * r;
-        const scale = diagonalLength;
-        const x1 = Math.round(x0 + scale * -y);
-        const y1 = Math.round(y0 + scale * x);
-        const x2 = Math.round(x0 - scale * -y);
-        const y2 = Math.round(y0 - scale * x);
-        this.c.beginPath();
-        this.c.moveTo(x1, y1);
-        this.c.lineTo(x2, y2);
-        this.c.strokeStyle = "red";
-        this.c.stroke();
+      for (let line2 of clusterReduced) {
+        let intersected = false;
+
+        if (line1 !== line2) {
+          const a1 = Math.cos(deg2Rad(line1.theta));
+          const b1 = Math.sin(deg2Rad(line1.theta));
+          const a2 = Math.cos(deg2Rad(line2.theta));
+          const b2 = Math.sin(deg2Rad(line2.theta));
+          const c1 = line1.r - this.diagonalLength;
+          const c2 = line2.r - this.diagonalLength;
+
+          const denominator = a1 * b2 - a2 * b1;
+
+          if (Math.abs(denominator) >= 1e-10) {
+            intersected = true;
+          }
+
+          if (intersected) {
+            const x = (c1 * b2 - c2 * b1) / denominator;
+            const y = (a1 * c2 - a2 * c1) / denominator;
+
+            // only interested in intersections within image bounds
+            if (
+              x >= 0 &&
+              x < this.sobelMatrix[0].length &&
+              y >= 0 &&
+              y < this.sobelMatrix.length
+            ) {
+              // filter out intersection clusters caused by close lines that are almost parallel
+              const tooClose = intersections.some((i) => {
+                const dist = Math.sqrt((i.x - x) ** 2 + (i.y - y) ** 2);
+
+                return dist < 10;
+              });
+
+              if (!tooClose) {
+                this.c.fillStyle = "blue";
+                this.c.fillRect(x - 3, y - 3, 6, 6);
+
+                intersections.push({ x, y });
+              }
+            }
+          }
+        }
       }
     }
     this.c.restore();
