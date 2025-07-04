@@ -15,10 +15,10 @@ export class HTL {
 
     for (let i = 0; i < this.matrix.length; i++) {
       for (let j = 0; j < this.matrix[i].length; j++) {
-        const brightness = this.matrix[i][j];
+        const luminosity = this.matrix[i][j];
 
         // is an edge pixel
-        if (brightness > 40) {
+        if (luminosity) {
           for (let theta = 0; theta < thetaSteps; theta++) {
             const thetaRad = theta * (Math.PI / 180);
             const rho = Math.round(

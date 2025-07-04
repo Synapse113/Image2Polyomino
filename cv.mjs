@@ -1,7 +1,7 @@
 import { Gaussian } from "./gaussian.mjs";
 import { HTL } from "./htl.mjs";
-import { Sobel } from "./sobel.mjs";
-import { deg2Rad, rad2Deg } from "./utils.mjs";
+import { AdaptiveThresholding } from "./thresholding.mjs";
+import { deg2Rad } from "./utils.mjs";
 
 export class CV {
   constructor(canvasID, imagePath) {
@@ -9,7 +9,7 @@ export class CV {
     this.imagePath = imagePath;
     this.grayscaleMatrix = [];
     this.gaussianMatrix = [];
-    this.sobelMatrix = [];
+    this.thresholdedMatrix = [];
     this.c = null;
   }
 
@@ -54,11 +54,8 @@ export class CV {
 
       this.displayGrayscale();
       this.gaussianBlur();
-      this.edgeDetection(900);
-      this.displayLines(900);
-
-      const htl = new HTL(this.sobelMatrix);
-      htl.computeHTL();
+      this.thresholding(900);
+      this.displayLines(900, this.thresholdedMatrix);
     };
   }
 
@@ -98,22 +95,20 @@ export class CV {
     this.c.stroke();
   }
 
-  displayLines(x) {
-    const htl = new HTL(this.sobelMatrix);
+  displayLines(x, matrix) {
+    const htl = new HTL(matrix);
     this.htlAccumulator = htl.computeHTL();
-    this.diagonalLength = Math.sqrt(
-      this.sobelMatrix[0].length ** 2 + this.sobelMatrix.length ** 2,
-    );
+    this.diagonalLength = Math.sqrt(matrix[0].length ** 2 + matrix.length ** 2);
     const clusterReduced = [];
 
     for (let i = 0; i < this.htlAccumulator.length; i++) {
       for (let j = 0; j < this.htlAccumulator[i].length; j++) {
         const votes = this.htlAccumulator[i][j];
 
-        if (votes > 190) {
+        if (votes > 180) {
           const tooClose = clusterReduced.some(
             (other) =>
-              Math.abs(other.r - i) < 16 && Math.abs(other.theta - j) < 5,
+              Math.abs(other.r - i) < 10 && Math.abs(other.theta - j) < 5,
           );
 
           if (!tooClose) {
@@ -152,12 +147,7 @@ export class CV {
             const y = (a1 * c2 - a2 * c1) / denominator;
 
             // only interested in intersections within image bounds
-            if (
-              x >= 0 &&
-              x < this.sobelMatrix[0].length &&
-              y >= 0 &&
-              y < this.sobelMatrix.length
-            ) {
+            if (x >= 0 && x < matrix[0].length && y >= 0 && y < matrix.length) {
               // filter out intersection clusters caused by close lines that are almost parallel
               const tooClose = intersections.some((i) => {
                 const dist = Math.sqrt((i.x - x) ** 2 + (i.y - y) ** 2);
@@ -166,7 +156,7 @@ export class CV {
               });
 
               if (!tooClose) {
-                this.c.fillStyle = "red";
+                this.c.fillStyle = "blue";
                 this.c.fillRect(x - 3, y - 3, 6, 6);
 
                 intersections.push({ x, y });
@@ -193,15 +183,15 @@ export class CV {
     this.c.restore();
   }
 
-  edgeDetection(x) {
-    const sobel = new Sobel(this.gaussianMatrix);
-    this.sobelMatrix = sobel.generateEdgeMatrix();
+  thresholding(x) {
+    const thresholding = new AdaptiveThresholding(this.gaussianMatrix);
+    this.thresholdedMatrix = thresholding.generate();
 
     this.c.save();
     this.c.translate(x, 0);
-    for (let i = 0; i < this.sobelMatrix.length; i++) {
-      for (let j = 0; j < this.sobelMatrix[i].length; j++) {
-        const g = this.sobelMatrix[i][j];
+    for (let i = 0; i < this.thresholdedMatrix.length; i++) {
+      for (let j = 0; j < this.thresholdedMatrix[i].length; j++) {
+        const g = this.thresholdedMatrix[i][j];
 
         this.c.fillStyle = `rgb(${g},${g},${g})`;
         this.c.fillRect(j, i, 1, 1);
