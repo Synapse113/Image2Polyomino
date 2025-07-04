@@ -11,6 +11,7 @@ export class CV {
     this.gaussianMatrix = [];
     this.thresholdedMatrix = [];
     this.c = null;
+    this.gridIntersections = [];
   }
 
   rgbToGrayscale(r, g, b) {
@@ -56,7 +57,16 @@ export class CV {
       this.gaussianBlur();
       this.thresholding(900);
       this.displayLines(900, this.thresholdedMatrix);
+      this.getCorners(this.gridIntersections);
     };
+  }
+
+  getCorners(intersections) {
+    console.log(intersections);
+
+    const sorted = intersections.sort((i) => i.x + i.y).sort((i) => i.y - i.x);
+
+    console.log(sorted);
   }
 
   vect2Line(line) {
@@ -118,8 +128,6 @@ export class CV {
       }
     }
 
-    const intersections = [];
-
     this.c.save();
     this.c.translate(x, 0);
     for (let line1 of clusterReduced) {
@@ -149,7 +157,7 @@ export class CV {
             // only interested in intersections within image bounds
             if (x >= 0 && x < matrix[0].length && y >= 0 && y < matrix.length) {
               // filter out intersection clusters caused by close lines that are almost parallel
-              const tooClose = intersections.some((i) => {
+              const tooClose = this.gridIntersections.some((i) => {
                 const dist = Math.sqrt((i.x - x) ** 2 + (i.y - y) ** 2);
 
                 return dist < 10;
@@ -159,7 +167,7 @@ export class CV {
                 this.c.fillStyle = "blue";
                 this.c.fillRect(x - 3, y - 3, 6, 6);
 
-                intersections.push({ x, y });
+                this.gridIntersections.push({ x, y });
               }
             }
           }
