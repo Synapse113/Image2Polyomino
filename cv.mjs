@@ -62,11 +62,63 @@ export class CV {
   }
 
   getCorners(intersections) {
-    console.log(intersections);
+    // we need a grid of nodes, but right now the exist in a 1d array in no particular order
+    const matrix = [];
 
-    const sorted = intersections.sort((i) => i.x + i.y).sort((i) => i.y - i.x);
+    // sort by y axis
+    const sorted = intersections.sort((a, b) => a.y - b.y);
 
-    console.log(sorted);
+    let lastSliced = 0;
+
+    for (let i = 0; i < sorted.length - 1; i++) {
+      const current = sorted[i];
+      const next = sorted[i + 1];
+
+      // probably need to dynamically generate this threshold
+      if (next.y - current.y > 10) {
+        matrix.push(intersections.slice(lastSliced, i + 1));
+
+        lastSliced = i + 1;
+      } else if (i + 1 == sorted.length - 1) {
+        matrix.push(intersections.slice(lastSliced, i + 2));
+      }
+    }
+
+    const smallestRow = Math.min(...matrix.map((row) => row.length));
+
+    // we need a grid where all rows are the same length (trimmed from the center)
+    const trimmedMatrix = matrix.map((row) => {
+      const center = Math.floor(row.length / 2);
+      const smallestRowHalf = Math.floor(smallestRow / 2);
+      const right = row.slice(center, center + smallestRowHalf);
+      const left = row.slice(center - smallestRowHalf, center);
+      const newRow = left.concat(right);
+
+      return newRow;
+    });
+
+    const topLeftCorner = trimmedMatrix[0][0];
+    const bottomLeftCorner = trimmedMatrix[trimmedMatrix.length - 1][0];
+    const topRightCorner = trimmedMatrix[0][trimmedMatrix[0].length - 1];
+    const bottomRightCorner =
+      trimmedMatrix[trimmedMatrix.length - 1][trimmedMatrix[0].length - 1];
+
+    const corners = [
+      topLeftCorner,
+      topRightCorner,
+      bottomLeftCorner,
+      bottomRightCorner,
+    ];
+    const gridSize = 10;
+    const targetCorners = [
+      { x: 0, y: 0 },
+      { x: gridSize * trimmedMatrix[0].length, y: 0 },
+      { x: 0, y: gridSize * trimmedMatrix.length },
+      {
+        x: gridSize * trimmedMatrix[0].length,
+        y: gridSize * trimmedMatrix.length,
+      },
+    ];
   }
 
   vect2Line(line) {
@@ -164,7 +216,7 @@ export class CV {
               });
 
               if (!tooClose) {
-                this.c.fillStyle = "blue";
+                this.c.fillStyle = "red";
                 this.c.fillRect(x - 3, y - 3, 6, 6);
 
                 this.gridIntersections.push({ x, y });
