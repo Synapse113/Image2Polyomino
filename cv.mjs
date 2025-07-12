@@ -103,13 +103,13 @@ export class CV {
     const bottomRightCorner =
       trimmedMatrix[trimmedMatrix.length - 1][trimmedMatrix[0].length - 1];
 
-    const corners = [
+    const sourceCorners = [
       topLeftCorner,
       topRightCorner,
       bottomLeftCorner,
       bottomRightCorner,
     ];
-    const gridSize = 10;
+    const gridSize = 32;
     const targetCorners = [
       { x: 0, y: 0 },
       { x: gridSize * trimmedMatrix[0].length, y: 0 },
@@ -119,6 +119,121 @@ export class CV {
         y: gridSize * trimmedMatrix.length,
       },
     ];
+
+    const b = targetCorners.map((point) => [point.x, point.y]).flat();
+
+    const coefficientMatrix = [];
+    const identityMatrix = [];
+
+    // solve for the homography matrix (8x8)
+    for (let i = 0; i < sourceCorners.length; i++) {
+      const sourceCorner = sourceCorners[i];
+      const targetCorner = targetCorners[i];
+
+      const x = [
+        sourceCorner.x,
+        sourceCorner.y,
+        1,
+        0,
+        0,
+        0,
+        -sourceCorner.x * targetCorner.x,
+        -sourceCorner.y * targetCorner.x,
+      ];
+      const y = [
+        0,
+        0,
+        0,
+        sourceCorner.x,
+        sourceCorner.y,
+        1,
+        -sourceCorner.x * targetCorner.y,
+        -sourceCorner.y * targetCorner.y,
+      ];
+
+      coefficientMatrix.push(x, y);
+    }
+
+    // generate identity matrix
+    for (let i = 0; i < coefficientMatrix.length; i++) {
+      identityMatrix[i] = new Array(coefficientMatrix.length).fill(0);
+
+      identityMatrix[i][i] = 1;
+    }
+
+    // solve linear system: A * h = b
+    // step one is to find the inverse of A
+    const augmentedMatrix = [];
+
+    for (let i = 0; i < coefficientMatrix.length; i++) {
+      let pivot = coefficientMatrix[i][i];
+
+      if (pivot === 0) {
+        // scan down for the next row with a non-0 pivot, and swap
+        for (let j = i + 1; j < coefficientMatrix.length; j++) {
+          const newPivot = coefficientMatrix[j][i];
+
+          if (newPivot !== 0) {
+            const tmpRow = coefficientMatrix[i];
+
+            coefficientMatrix[i] = coefficientMatrix[j];
+            coefficientMatrix[j] = tmpRow;
+
+            const tmpIdentityRow = identityMatrix[i];
+
+            identityMatrix[i] = identityMatrix[j];
+            identityMatrix[j] = tmpIdentityRow;
+
+            break;
+          }
+        }
+      }
+
+      pivot = coefficientMatrix[i][i];
+
+      if (pivot === 0) {
+        throw "Matrix is singular! Cannot calculate inverse";
+        return;
+      }
+
+      for (let j = 0; j < coefficientMatrix[i].length; j++) {
+        coefficientMatrix[i][j] /= pivot;
+        identityMatrix[i][j] /= pivot;
+      }
+
+      // zero out the other elements in rows that are not the current pivot row
+      for (let row = 0; row < coefficientMatrix.length; row++) {
+        if (row === i) continue;
+
+        const factor = coefficientMatrix[row][i]; // pivot
+
+        for (let col = 0; col < coefficientMatrix[row].length; col++) {
+          coefficientMatrix[row][col] -= factor * coefficientMatrix[i][col];
+          identityMatrix[row][col] -= factor * identityMatrix[i][col];
+        }
+      }
+    }
+
+    const multipliedMatrix = new Array(identityMatrix.length).fill(0);
+
+    for (let i = 0; i < identityMatrix.length; i++) {
+      for (let j = 0; j < identityMatrix[i].length; j++) {
+        multipliedMatrix[i] += identityMatrix[i][j] * b[j];
+      }
+    }
+
+    multipliedMatrix.push(1);
+
+    // reconstruct homography matrix (3x3)
+    const homographyMatrix = [];
+
+    for (let i = 0; i < 3; i++) {
+      const index = i * 3;
+
+      homographyMatrix.push(multipliedMatrix.slice(index, index + 3));
+    }
+
+    console.log(homographyMatrix);
   }
 
   vect2Line(line) {
@@ -184,7 +299,6 @@ export class CV {
     this.c.translate(x, 0);
     for (let line1 of clusterReduced) {
       // this.drawLine(line1);
-
       for (let line2 of clusterReduced) {
         let intersected = false;
 
