@@ -109,14 +109,16 @@ export class CV {
       bottomLeftCorner,
       bottomRightCorner,
     ];
-    const gridSize = 32;
+    const gridSize = 20;
+    const targetWidth = gridSize * trimmedMatrix[0].length;
+    const targetHeight = gridSize * trimmedMatrix.length;
     const targetCorners = [
       { x: 0, y: 0 },
-      { x: gridSize * trimmedMatrix[0].length, y: 0 },
-      { x: 0, y: gridSize * trimmedMatrix.length },
+      { x: targetWidth, y: 0 },
+      { x: 0, y: targetHeight },
       {
-        x: gridSize * trimmedMatrix[0].length,
-        y: gridSize * trimmedMatrix.length,
+        x: targetWidth,
+        y: targetHeight,
       },
     ];
 
@@ -233,7 +235,62 @@ export class CV {
       homographyMatrix.push(multipliedMatrix.slice(index, index + 3));
     }
 
-    console.log(homographyMatrix);
+    const warpedMatrix = new Array(targetHeight)
+      .fill(0)
+      .map((i) => new Array(targetWidth).fill(0));
+
+    this.c.save();
+    this.c.translate(500, 500);
+    for (let i = 0; i < targetHeight; i++) {
+      for (let j = 0; j < targetWidth; j++) {
+        const inputVector = [j, i, 1]; // x, y, w
+        const outputVector = [0, 0, 0];
+
+        for (let a = 0; a < homographyMatrix.length; a++) {
+          let dotProduct = 0;
+
+          for (let b = 0; b < homographyMatrix[a].length; b++) {
+            const h = homographyMatrix[a][b] * inputVector[b];
+
+            dotProduct += h;
+          }
+
+          outputVector[a] = dotProduct;
+        }
+
+        const x = Math.round(outputVector[0] / outputVector[2]);
+        const y = Math.round(outputVector[1] / outputVector[2]);
+
+        // make sure we're within the target image bounds before we sample a given UV
+        if (
+          x >= 0 &&
+          y >= 0 &&
+          x < this.grayscaleMatrix[0].length &&
+          x < this.grayscaleMatrix[0].length &&
+          y < this.grayscaleMatrix.length
+        ) {
+          const color = this.grayscaleMatrix[y][x];
+
+          warpedMatrix[i][j] = color;
+        }
+
+        this.c.fillStyle = "red";
+        this.c.fillRect(x, y, 1, 1);
+      }
+    }
+    this.c.restore();
+
+    this.c.save();
+    this.c.translate(20, 500);
+    for (let i = 0; i < warpedMatrix.length; i++) {
+      for (let j = 0; j < warpedMatrix[i].length; j++) {
+        const color = warpedMatrix[i][j];
+
+        this.c.fillStyle = `rgb(${color},${color},${color})`;
+        this.c.fillRect(j, i, 1, 1);
+      }
+    }
+    this.c.restore();
   }
 
   vect2Line(line) {
